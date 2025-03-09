@@ -1,44 +1,46 @@
+#!/bin/bash
+
+# Create and enter the build directory
 mkdir build
 pushd build
 
+# Download the Notion Windows installer
 curl --location https://www.notion.so/desktop/windows/download --output installer
 
+# Extract app-64.7z from the installer
 7z e installer \$PLUGINSDIR/app-64.7z
-7z e app-64.7z resources/app.asar
-npx --yes @electron/asar extract app.asar app
 
-sqlite=$(node --print "require('./app/package.json').dependencies['better-sqlite3']")
+# Extract all contents of app-64.7z with directory structure
+7z x app-64.7z -o.
+
+# Extract app.asar into the app directory
+npx --yes @electron/asar extract resources/app.asar app
+
+# Get the Electron version from package.json
 electron=$(node --print "require('./app/package.json').devDependencies['electron']")
 
-# Download better-sqlite3
-# It's a git:// URL, don't bother doing it otherwise
-npm pack $sqlite
-tar --extract --file better-sqlite3-*.tgz
-
-# Rebuild better-sqlite3
-pushd package
-npm install
-# https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules#manually-building-for-electron
-npx node-gyp rebuild --target=$electron --arch=x64 --dist-url=https://electronjs.org/headers
-cp build/Release/better_sqlite3.node ../app/node_modules/better-sqlite3/build/Release
+# Rebuild all native modules for the target Electron version
+pushd app
+npx electron-rebuild --version "$electron"
 popd
 
+# Enter the app directory for final adjustments
 pushd app
 
-# Official icon is not recognized by electron builder
+# Replace the official icon (not recognized by electron-builder)
 rm icon.ico
 cp ../../assets/icon.png .
 
-# - Patch platform detection
-# - Disable auto update
+# Patch platform detection and disable auto-updates
 sed --in-place '
-	s/"win32"===process.platform/(true)/g
-	s/_.Store.getState().app.preferences?.isAutoUpdaterDisabled/(true)/g
+    s/"win32"===process.platform/(true)/g
+    s/_.Store.getState().app.preferences?.isAutoUpdaterDisabled/(true)/g
 ' .webpack/main/index.js
 
-# Don't let electron-builder rebuild native dependencies
-# https://www.electron.build/cli
+# Build the AppImage without rebuilding native dependencies (already handled)
 npx --yes electron-builder --linux appimage --config.npmRebuild=false
+
 popd
 
+# Exit the build directory
 popd
