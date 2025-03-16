@@ -14,6 +14,6 @@ Prepare dependencies:
 
 `sudo apt update && sudo apt install -y p7zip-full nodejs npm build-essential`
 
-Then run [`build.sh`](build.sh).
+Then run [`build.sh`](build.sh). the .appimage can be found @ `/notion-appimage/build/app/dist`
 
-download prebuilt app via GitHub releases, then launch.
+download prebuilt app via GitHub releases, use appimage launcher then launch.

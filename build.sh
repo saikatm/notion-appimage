@@ -125,7 +125,7 @@ echo "Creating package.json for electron-builder..."
 cat > package.json << EOF
 {
   "name": "notion",
-  "version": "1.0.0",
+  "version": "4.6.3",
   "description": "Notion AppImage",
   "main": ".webpack/main/index.js",
   "author": "Notion",
