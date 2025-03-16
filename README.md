@@ -12,7 +12,7 @@ Prepare dependencies:
 - Node.js & npm
 - Standard Unix tools
 
-## Advice: use the latest version of node & use local machine (not github codespaces)
+### Advice: use the latest version of node & use local machine (not github codespaces)
 
 `sudo apt update && sudo apt install -y p7zip-full nodejs npm build-essential`
 
