@@ -60,7 +60,23 @@ tar --extract --file better-sqlite3-*.tgz
 
 echo "Rebuilding better-sqlite3..."
 cd package
+
+# Patch binding.gyp to use C++17 instead of C++20
+echo "Patching binding.gyp to fix C++ standard version..."
+if [ -f "binding.gyp" ]; then
+  sed -i 's/"-std=gnu++20"/"-std=gnu++17"/g' binding.gyp
+  sed -i 's/"-std=c++20"/"-std=c++17"/g' binding.gyp
+fi
+
 npm install
+
+# Another patch for CXXFLAGS in better_sqlite3.target.mk if needed
+if [ -f "build/better_sqlite3.target.mk" ]; then
+  echo "Patching build/better_sqlite3.target.mk..."
+  sed -i 's/-std=gnu++20/-std=gnu++17/g' build/better_sqlite3.target.mk
+  sed -i 's/-std=c++20/-std=c++17/g' build/better_sqlite3.target.mk
+fi
+
 echo "Running node-gyp rebuild..."
 npx node-gyp rebuild --target=$electron --arch=x64 --dist-url=https://electronjs.org/headers
 
