@@ -12,7 +12,17 @@ Prepare dependencies:
 - Node.js & npm
 - Standard Unix tools
 
+## Advice: use the latest version of node & use local machine (not github codespaces)
+
 `sudo apt update && sudo apt install -y p7zip-full nodejs npm build-essential`
+
+`curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash`
+`export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"`
+
+`nvm install 16`
+
+`nvm use 16`
 
 Then run [`build.sh`](build.sh). the .appimage can be found @ `/notion-appimage/build/app/dist`
 
