@@ -1,26 +1,6 @@
 #!/bin/bash
 set -e  # Exit on error
 
-# Check Node.js version
-NODE_VERSION=$(node --version | cut -d 'v' -f 2)
-MAJOR_VERSION=$(echo $NODE_VERSION | cut -d '.' -f 1)
-
-echo "Detected Node.js version: $NODE_VERSION"
-if [ "$MAJOR_VERSION" -lt "14" ]; then
-  echo "Warning: Your Node.js version is too old. This script requires Node.js 14 or higher."
-  echo "Attempting to use nvm to switch to a compatible version..."
-  
-  # Try to use nvm if available
-  if [ -f "$HOME/.nvm/nvm.sh" ]; then
-    source "$HOME/.nvm/nvm.sh"
-    nvm install 18 || nvm use 18 || echo "Failed to switch Node.js version. Please install Node.js 14+ and try again."
-    echo "Now using Node.js $(node --version)"
-  else
-    echo "nvm not found. Please install Node.js 14+ manually before continuing."
-    exit 1
-  fi
-fi
-
 # Create build directory if it doesn't exist
 mkdir -p build
 cd build
@@ -46,33 +26,55 @@ touch app.asar.unpacked/node_modules/node-mac-window/build/Release/mac_window.no
 echo "Extracting app.asar..."
 npx --yes @electron/asar extract app.asar app
 
-# Get dependency versions from package.json
+# Get dependency versions and Notion version from package.json
 cd app
-echo "Reading dependency versions..."
+echo "Reading dependency versions and app version..."
+
+# Try multiple approaches to find version
+# First try from the original package.json
+notion_version=$(node --print "try { require('./package.json').version || '' } catch(e) { '' }")
+
+# If that fails, look in other locations
+if [ -z "$notion_version" ]; then
+  # Try to find version in the main js file
+  echo "Trying to find version in JS files..."
+  if [ -f ".webpack/main/index.js" ]; then
+    notion_version=$(grep -o '"version":"[^"]*"' .webpack/main/index.js | head -1 | cut -d'"' -f4)
+  fi
+  
+  # Try to find in renderer file if exists
+  if [ -z "$notion_version" ] && [ -f ".webpack/renderer/index.js" ]; then
+    notion_version=$(grep -o '"version":"[^"]*"' .webpack/renderer/index.js | head -1 | cut -d'"' -f4)
+  fi
+  
+  # If still not found, check any package.json files in the directories
+  if [ -z "$notion_version" ]; then
+    echo "Searching for version in other package.json files..."
+    found_version=$(find . -name "package.json" -exec grep -l "\"version\"" {} \; | xargs grep "\"version\"" | head -1)
+    notion_version=$(echo "$found_version" | grep -o '"version": "[^"]*"' | cut -d'"' -f4)
+  fi
+fi
+
+# If still not found, fall back to a default version
+if [ -z "$notion_version" ]; then
+  echo "Could not detect Notion version, using date-based version"
+  notion_version=$(date +"%Y.%m.%d")
+fi
+
+echo "Using Notion version: $notion_version"
+
+# Determine dependency versions
 if [ -f "package.json" ]; then
-  # Try to get versions safely, without using modern JS features
+  # Try to get versions safely
   sqlite=$(node --print "try { require('./package.json').dependencies['better-sqlite3'] } catch(e) { 'unknown' }")
   electron=$(node --print "try { require('./package.json').devDependencies['electron'] } catch(e) { 'unknown' }")
   
-  # If versions are unknown, try alternatives
+  # If versions are unknown, try to get them from any package.json present
   if [ "$sqlite" == "unknown" ] || [ "$electron" == "unknown" ]; then
     echo "Searching for dependency versions in node_modules..."
-    # Default values
-    sqlite="7.4.3"
-    electron="25.8.0"
-    
-    # Try to find in files
-    if [ -f "package.json" ]; then
-      BETTER_SQLITE=$(grep -o '"better-sqlite3": "[^"]*"' package.json | cut -d'"' -f4)
-      if [ ! -z "$BETTER_SQLITE" ]; then
-        sqlite=$BETTER_SQLITE
-      fi
-      
-      ELECTRON=$(grep -o '"electron": "[^"]*"' package.json | cut -d'"' -f4)
-      if [ ! -z "$ELECTRON" ]; then
-        electron=$ELECTRON
-      fi
-    fi
+    find . -name "package.json" -exec grep -l "better-sqlite3\|electron" {} \; | head -1 | xargs cat > /tmp/pkg.json
+    sqlite=$(node --print "try { require('/tmp/pkg.json').dependencies['better-sqlite3'] || '7.4.3' } catch(e) { '7.4.3' }")
+    electron=$(node --print "try { require('/tmp/pkg.json').devDependencies['electron'] || '25.8.0' } catch(e) { '25.8.0' }")
   fi
 else
   # Default versions if package.json doesn't exist
@@ -88,31 +90,14 @@ mkdir -p node_modules/better-sqlite3/build/Release
 cd ..
 
 echo "Downloading better-sqlite3..."
-# Force using an older version of node-gyp compatible with older Node.js
-echo "Installing compatible node-gyp..."
-npm install -g node-gyp@8.4.1
-
-# Force using an older version of better-sqlite3 that is compatible with older Node.js
-if [ "$MAJOR_VERSION" -lt "14" ]; then
-  echo "Using better-sqlite3 version compatible with Node.js 12..."
-  sqlite="7.6.0"  # Last version known to work with Node.js 12
-fi
-
 npm pack better-sqlite3@$sqlite
 tar --extract --file better-sqlite3-*.tgz
 
 echo "Rebuilding better-sqlite3..."
 cd package
-
-# Ensure we're using a compatible version of node-gyp
-# Create .npmrc file to force specific node-gyp version
-echo "node-gyp=node-gyp@8.4.1" > .npmrc
-
-npm install --no-package-lock
-
+npm install
 echo "Running node-gyp rebuild..."
-# Use explicit path to the compatible node-gyp
-npx node-gyp@8.4.1 rebuild --target=$electron --arch=x64 --dist-url=https://electronjs.org/headers
+npx node-gyp rebuild --target=$electron --arch=x64 --dist-url=https://electronjs.org/headers
 
 echo "Copying built module..."
 cp build/Release/better_sqlite3.node ../app/node_modules/better-sqlite3/build/Release/
@@ -120,12 +105,12 @@ cd ..
 
 cd app
 
-# Create or update package.json with required fields
+# Create or update package.json with required fields and dynamic version
 echo "Creating package.json for electron-builder..."
 cat > package.json << EOF
 {
   "name": "notion",
-  "version": "4.6.3",
+  "version": "$notion_version",
   "description": "Notion AppImage",
   "main": ".webpack/main/index.js",
   "author": "Notion",
@@ -185,5 +170,4 @@ fi
 cp ../../assets/icon.png .
 
 echo "Running electron-builder..."
-# Use npx to run electron-builder with explicit version
-npx --yes electron-builder@23.6.0 --linux AppImage --config.npmRebuild=false
+npx --yes electron-builder --linux AppImage --config.npmRebuild=false
