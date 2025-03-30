@@ -3,8 +3,26 @@ set -e  # Exit on error
 
 # Check Node.js version
 echo "Checking Node.js version..."
-node_version=$(node --version)
-echo "Using Node.js $node_version"
+node_version=$(node --version | cut -d 'v' -f2)
+node_major_version=$(echo $node_version | cut -d '.' -f1)
+
+if [ "$node_major_version" -lt 14 ]; then
+  echo "Warning: Your Node.js version is too old. This script requires Node.js 14 or higher."
+  echo "Attempting to use nvm to switch to a compatible version..."
+  
+  # Try to use nvm if available
+  if [ -s "$NVM_DIR/nvm.sh" ]; then
+    source "$NVM_DIR/nvm.sh"
+    nvm use 16 || nvm install 16
+    node_version=$(node --version)
+    echo "Switched to Node.js $node_version using nvm"
+  else
+    echo "nvm not found. Please install Node.js 14 or higher manually."
+    exit 1
+  fi
+else
+  echo "Using Node.js $node_version"
+fi
 
 # Create build directory if it doesn't exist
 mkdir -p build
@@ -88,6 +106,26 @@ else
   electron="25.8.0"
 fi
 
+# Get the current Electron version from the extracted app
+echo "Detected Electron version from Notion app: $electron"
+
+# Check for the latest Electron version
+echo "Checking latest Electron version..."
+latest_electron=$(npm view electron version)
+echo "Latest Electron version available: $latest_electron"
+
+# Compare versions and decide which to use
+if [ "$(printf '%s\n' "$latest_electron" "$electron" | sort -V | head -n1)" = "$electron" ]; then
+  echo "Detected Electron version is older than latest. Upgrading to latest: $latest_electron"
+  electron="$latest_electron"
+else
+  echo "Using detected Electron version: $electron"
+fi
+
+# Get corresponding Chromium version for the selected Electron
+chromium_version=$(npm view electron@$electron chromium)
+echo "Using Chromium version: $chromium_version (from Electron $electron)"
+
 echo "Using sqlite version: $sqlite, electron version: $electron"
 
 # Create directories for native modules
@@ -158,6 +196,12 @@ if [ -f ".webpack/main/index.js" ]; then
     s/"win32"===process.platform/(true)/g
     s/_.Store.getState().app.preferences?.isAutoUpdaterDisabled/(true)/g
   ' .webpack/main/index.js
+  
+  # Add patch to force using the latest Electron/Chromium
+  echo "Patching to use latest Electron/Chromium..."
+  # This is a simple patch - may need to be adjusted for specific Notion versions
+  electron_version_json="{\"electron\":\"$electron\",\"chromium\":\"$chromium_version\"}"
+  sed -i "s/const\s*electronVersion\s*=\s*[^;]*;/const electronVersion = $electron_version_json;/g" .webpack/main/index.js 2>/dev/null || echo "Could not patch electron version reference"
 else
   echo "Warning: .webpack/main/index.js not found, skipping patches"
 fi
@@ -173,6 +217,15 @@ if [ ! -f "../../assets/icon.png" ]; then
   fi
 fi
 cp ../../assets/icon.png .
+
+# Log the final versions being used
+echo "==================================="
+echo "Building Notion AppImage with:"
+echo "Notion version: $notion_version"
+echo "Electron version: $electron"
+echo "Chromium version: $chromium_version"
+echo "SQLite version: $sqlite"
+echo "==================================="
 
 echo "Running electron-builder..."
 npx --yes electron-builder --linux AppImage --config.npmRebuild=false
