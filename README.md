@@ -1,29 +1,31 @@
 # Notion AppImage
 
-**THIS IS AN UNOFFICIAL REPACK, USE AT YOUR OWN RISK**
+**Unofficial Repackage - Use at Your Own Discretion**
 
-Credit goes to [@kidonng](https://github.com/kidonng/notion-appimage) for making the repo and [Claude 3.7 sonet](https://claude.ai) for fixing the old script.
+Acknowledgments: Developed by [@kidonng](https://github.com/kidonng/notion-appimage), with script enhancements by [Claude 3.7 Sonnet](https://claude.ai).
 
-## Build
+## Build Instructions
 
-Prepare dependencies:
-
+### Prerequisites
 - 7zip
 - Node.js & npm
-- Standard Unix tools
+- Standard Unix utilities
 
-### Advice: use the latest version of node & use local machine (not github codespaces)
+**Recommendation**: Utilize the latest Node.js version on a local system for optimal results.
 
-`sudo apt update && sudo apt install -y p7zip-full nodejs npm build-essential`
+### Installation Steps
+Detect your Linux distribution and use the appropriate package manager:
 
-`curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash`
-`export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"`
+- **Ubuntu-based systems**:
+```bash
+sudo apt update && sudo apt install -y p7zip-full nodejs npm build-essential
+```
 
-`nvm install 16`
+- **Fedora-based systems**:
+```bash
+sudo dnf install -y p7zip nodejs npm make gcc gcc-c++
+```
 
-`nvm use 16`
+Execute `build.sh`. The resulting `.appimage` file will be located in `/notion-appimage/build/app/dist`.
 
-Then run [`build.sh`](build.sh). the .appimage can be found @ `/notion-appimage/build/app/dist`
-
-download prebuilt app via GitHub releases, use appimage launcher then launch.
+Alternatively, obtain the prebuilt application from GitHub Releases and deploy using an AppImage launcher.
