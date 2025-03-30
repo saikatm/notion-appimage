@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e  # Exit on error
 
+# Check Node.js version
+echo "Checking Node.js version..."
+node_version=$(node --version)
+echo "Using Node.js $node_version"
+
 # Create build directory if it doesn't exist
 mkdir -p build
 cd build
